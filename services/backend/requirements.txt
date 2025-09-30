@@ -7,6 +7,7 @@ passlib~=1.7.4
 python-jose~=3.3.0
 python-multipart~=0.0.17
 ultralytics~=8.3.86
-
+pytest==8.2.2
+pytest-asyncio==0.23.8
 tortoise-orm==0.19.3
 pydantic==1.10.17
