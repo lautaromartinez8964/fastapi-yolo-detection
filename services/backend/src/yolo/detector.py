@@ -207,7 +207,7 @@ class Detector:
         print("开始逐帧处理..")
         while cap.isOpened():
             # 读取下一帧
-            ret, frame = cap.read()
+            ret, frame = cap.read()  # ret表示是否读取帧成功， frame是图像每帧具体数据
 
             # 检查是否成功读取帧
             if not ret:
@@ -277,10 +277,10 @@ class Detector:
         """
         切换一个新的YOLO模型
         Args:
-            new_model_path (str): 新模型的路径
+            new_model_path (str): 新模型的文件名（如 'valorant.pt'）
         """
-        pre_path = self.config.models_dir
-        full_path = pre_path + new_model_path
+        # 正确拼接模型路径
+        full_path = os.path.join(self.config.models_dir, new_model_path)
         if not os.path.exists(full_path):
             raise FileNotFoundError(f"Model file not found at {full_path}")
 

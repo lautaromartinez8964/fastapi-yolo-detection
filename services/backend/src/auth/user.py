@@ -3,12 +3,13 @@ from fastapi.security import OAuth2PasswordRequestForm
 from passlib.context import CryptContext
 from tortoise.exceptions import DoesNotExist
 
-from src.core.database.models import Users
-from src.core.schemas.users import UserDatabaseSchema
+from src.database.models import Users
+from src.schemas.users import UserDatabaseSchema
 
 # 密码处理配置
 # 使用passlib的CryptContext来管理密码哈希,构造一个CryptContext对象
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
 
 # 1.验证明文密码是否与哈希密码匹配
 def verify_password(plain_password, hashed_password):
@@ -19,11 +20,12 @@ def verify_password(plain_password, hashed_password):
         hashed_password (str): 哈希密码
     Returns:
         bool: 如果匹配返回True,否则返回False
-    
+
     为什么不能简单比较字符串：
       哈希算法有随机盐值，每次生成的哈希都不同，需要CryptContext对象进行专门的验证算法
     """
     return pwd_context.verify(plain_password, hashed_password)
+
 
 # 2.获取密码的哈希值
 def get_password_hash(password):
@@ -36,8 +38,9 @@ def get_password_hash(password):
     """
     return pwd_context.hash(password)
 
+
 # 3.用户查询函数
-async def get_user(username:str):
+async def get_user(username: str):
     """
     根据用户名从数据库中查询用户
     Args:
@@ -46,6 +49,7 @@ async def get_user(username:str):
         UserDatabaseSchema | None: 如果找到用户，返回UserDatabaseSchema对象，否则返回None
     """
     return await UserDatabaseSchema.from_queryset_single(Users.get(username=username))
+
 
 # 4.用户验证主函数
 async def validate_user(user: OAuth2PasswordRequestForm = Depends()):
@@ -83,6 +87,3 @@ async def validate_user(user: OAuth2PasswordRequestForm = Depends()):
 
     # 返回验证通过的用户
     return db_user
-      
-
-

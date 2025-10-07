@@ -21,7 +21,7 @@ async def create_user(user) ->UserOutSchema:
     user.password = pwd_context.hash(user.password) #对密码进行哈希处理
     
     try:
-        user_newobj = await Users.create(**user.dict(exclude_unset=True)) #通过Tortoise ORM的create()创建用户
+        user_newobj = await Users.create(**user.dict(exclude_unset=True)) #通过Tortoise ORM的create()创建用户，会自动创建到数据库里面
     except IntegrityError:
         raise HTTPException(status_code=400, detail="Username already exists")
     return await UserOutSchema.from_tortoise_orm(user_newobj) #将Tortoise ORM模型转换为Pydantic模型返回
@@ -31,7 +31,7 @@ async def delete_user(user_id, current_user) -> Status:
     删除指定id的用户
     Args:
         user_id(int): 要删除的用户ID
-        current_user(Users): 当前登录的用户对象
+        current_user(UserOutSchema): 当前登录的用户对象
     Returns:
         Status: 删除操作的状态信息
     Raises:

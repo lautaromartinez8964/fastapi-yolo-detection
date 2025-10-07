@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>API连接测试</title>
+</head>
+<body>
+    <h1>API连接测试</h1>
+    <button onclick="testRegister()">测试注册</button>
+    <button onclick="testLogin()">测试登录</button>
+    <div id="result"></div>
+
+    <script>
+        async function testRegister() {
+            try {
+                const response = await fetch('http://localhost:5000/register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        username: 'testuser2',
+                        password: 'testpass123',
+                        full_name: 'Test User 2'
+                    })
+                });
+
+                const result = await response.text();
+                document.getElementById('result').innerHTML = `
+                    <h3>注册测试结果:</h3>
+                    <p>状态: ${response.status}</p>
+                    <p>响应: ${result}</p>
+                `;
+            } catch (error) {
+                document.getElementById('result').innerHTML = `
+                    <h3>注册测试错误:</h3>
+                    <p>错误: ${error.message}</p>
+                `;
+            }
+        }
+
+        async function testLogin() {
+            try {
+                const formData = new FormData();
+                formData.append('username', 'testuser');
+                formData.append('password', 'testpass123');
+
+                const response = await fetch('http://localhost:5000/login', {
+                    method: 'POST',
+                    credentials: 'include',
+                    body: formData
+                });
+
+                const result = await response.text();
+                document.getElementById('result').innerHTML = `
+                    <h3>登录测试结果:</h3>
+                    <p>状态: ${response.status}</p>
+                    <p>响应: ${result}</p>
+                `;
+            } catch (error) {
+                document.getElementById('result').innerHTML = `
+                    <h3>登录测试错误:</h3>
+                    <p>错误: ${error.message}</p>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>

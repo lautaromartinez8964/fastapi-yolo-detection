@@ -34,10 +34,12 @@ class OAuth2PasswordBearerCookie(OAuth2):
             scopes = {}  # 如果没有传入权限范围，设为空字典 避免None值导致错误
         # 创建OAuth2流程配置，指定密码模式的令牌URL和权限范围
         flows = OAuthFlowsModel(password={"tokenUrl": token_Url, "scopes": scopes})
-        super().__init__(flow=flows, scheme_name=scheme_name, auto_error=auto_error)
+        super().__init__(flows=flows, scheme_name=scheme_name, auto_error=auto_error)
 
     # 核心方法：从Cookie获取Token
-    async def __call__(self, request: Request) -> Optional[str]:
+    async def __call__(
+        self, request: Request
+    ) -> Optional[str]:  # 唤起函数，创建一个实例时调用__call__，从请求中获取Token
         authorization: str = request.cookies.get(
             "Authorization"
         )  # 从请求的Cookie中获取Authorizatrion字段
