@@ -69,23 +69,16 @@ Thumbs.db
 # Docker
 .dockerignore
 
-# Node.js (for Vue frontend)
+# Node.js dependencies (only exclude node_modules and logs)
 services/frontend/node_modules/
 services/frontend/npm-debug.log*
 services/frontend/yarn-debug.log*
 services/frontend/yarn-error.log*
-services/frontend/lerna-debug.log*
 services/frontend/.pnpm-debug.log*
-services/frontend/dist/
-services/frontend/build/
 
-# Vue.js
-services/frontend/.nuxt
-services/frontend/.vuepress/dist
-services/frontend/.serverless/
-services/frontend/.fusebox/
-services/frontend/.dynamodb/
-services/frontend/.tern-port
+# Vue.js development files (only exclude development cache and temp files)
+services/frontend/.cache/
+services/frontend/.temp/
 
 # Database
 *.db
@@ -103,11 +96,12 @@ recurrent_log.txt
 .env.test.local
 .env.production.local
 
-# YOLO models and weights (these can be large)
-*.pt
+# YOLO models and outputs (these can be large or generated)
+services/backend/src/yolo/models/*.pt
+services/backend/src/yolo/output/
+services/backend/src/yolo/input/
 *.onnx
 weights/
-models/
 runs/
 
 # Temporary files
