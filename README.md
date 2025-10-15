@@ -42,7 +42,8 @@ cd fastapi_yolo_fxy
 ```bash
 # 构建并启动所有服务
 docker compose up --build
-
+# 如果拉不下来，可以先运行：
+docker pull cnstark/pytorch:2.3.1-py3.10.15-ubuntu22.04
 # 或者后台运行
 docker compose up --build -d
 ```
