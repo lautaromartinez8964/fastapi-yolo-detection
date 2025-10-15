@@ -275,6 +275,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useStore } from 'vuex'
 import { useRouter } from 'vue-router'
+import axios from 'axios'
 
 export default {
     name: 'ProfileView',
@@ -346,18 +347,11 @@ export default {
 
                 await store.dispatch('user/viewMe')
 
-                // 模拟加载使用统计数据
-                // 在实际项目中，这里应该调用专门的统计API
-                stats.value = {
-                    imagesProcessed: Math.floor(Math.random() * 100),
-                    videosProcessed: Math.floor(Math.random() * 20),
-                    detectionsCount: Math.floor(Math.random() * 500),
-                    totalTime: `${Math.floor(Math.random() * 48)}h`
-                }
-
+                // 加载真实的用户统计数据
+                await loadUserStats()
             } catch (error) {
                 console.error('加载用户资料失败:', error)
-                this.error = '加载用户资料失败，请重试'
+                error.value = '加载用户资料失败，请重试'
             } finally {
                 isLoading.value = false
             }
@@ -391,6 +385,45 @@ export default {
                 showError('注销失败，请重试')
             } finally {
                 isLoading.value = false
+            }
+        }
+
+        // 加载用户统计数据
+        const loadUserStats = async () => {
+            try {
+                console.log('🔍 开始加载用户统计数据...')
+                const response = await axios.get('/yolo/user_stats')
+                console.log('📊 API响应:', response.data)
+
+                stats.value = {
+                    imagesProcessed: response.data.images_processed || 0,
+                    videosProcessed: response.data.videos_processed || 0,
+                    detectionsCount: response.data.total_detections || 0,
+                    totalTime: response.data.total_processing_time
+                        ? `${Math.round(response.data.total_processing_time / 3600 * 10) / 10}h`
+                        : '0h'
+                }
+                console.log('✅ 统计数据更新成功:', stats.value)
+            } catch (error) {
+                console.error('❌ 加载用户统计失败:', error)
+                console.error('错误详情:', error.response?.data)
+
+                // 显示错误信息给用户
+                if (error.response?.status === 401) {
+                    showError('请先登录后查看统计信息')
+                } else if (error.response?.status === 500) {
+                    showError('服务器错误，可能是数据库未初始化')
+                } else {
+                    showError('获取统计数据失败，显示默认值')
+                }
+
+                // 如果加载失败，使用默认值
+                stats.value = {
+                    imagesProcessed: 0,
+                    videosProcessed: 0,
+                    detectionsCount: 0,
+                    totalTime: '0h'
+                }
             }
         }
 
@@ -440,12 +473,7 @@ export default {
                 await loadUserProfile()
             } else {
                 // 如果已有用户信息，只加载统计数据
-                stats.value = {
-                    imagesProcessed: Math.floor(Math.random() * 100),
-                    videosProcessed: Math.floor(Math.random() * 20),
-                    detectionsCount: Math.floor(Math.random() * 500),
-                    totalTime: `${Math.floor(Math.random() * 48)}h`
-                }
+                await loadUserStats()
             }
         })
 
@@ -471,6 +499,7 @@ export default {
             clearError,
             clearSuccess,
             loadUserProfile,
+            loadUserStats,
             editProfile,
             changePassword,
             logoutAccount,

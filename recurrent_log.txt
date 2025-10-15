@@ -1,0 +1,257 @@
+Day1 9.19
+   I 组织后端文件架构，创建backend里面的Dockerfile，requirements依赖和总项目的docker-compose.yml
+   II 理解:Dockerfile:用来描述如何构建一个镜像，定义安装依赖，构建步骤，基础镜像等，专注于“构建镜像”，即把应用和运行依赖打包成镜像
+          docker-compose.yml:用来定义编排多个容器的运行配置，编排多个容器（services）的运行配置。它把镜像（或构建镜像的上下文）与容器运行时的配置（端口映射、挂载卷、环境变量、网络、依赖等）聚合在一起，方便一次性启动/停止一组服务(docker compose up/down)
+          两者配合流程：🕐在项目里写好Dockerfile（定义如何构建单个服务（前/后端的镜像，
+                     🕑 在docker-compose.yml中为每个服务指定build（指向含Dockerfile的目录）或image(已构建的镜像)，并配置运行时选项
+                     🕒 docker-compose up --build一次性构建服务
+          docker常用命令:docker compose logs backend/frotend:查看服务器运行日志
+                        docker compose ps 查看服务器运行状态
+                        docker compose restart backend/frontend 重启某个服务器
+                        docker network ls 查看docker网络配置
+                        docker compose exec 服务器名：在服务器内执行命令，如docker compose exec frontend curx -X GET http://backend:5000/docs 测试前端容器是否能通过Docker网络访问后端容器
+          curl命令：可以通过curl在终端进行对服务器网址路由的访问，指定访问的方法(get/post/delete)与传入的数据,并接收返回
+                   例:curl -X Post "http://localhost:5000/yolo/change_model" -F "model_path=valorant.pt" 测试请求切换模型API，期望返回切换模型方法里定义的{"message":"Model changed successfully to valorant.pt"}
+                      curl -X POST "http://localhost:5000/register" -H "Content-Type: application/json" -d '{"username": "demo", "full_name": "Demo User", "password": "demo123"}' 测试用户注册
+          Dockerfile里两种得到镜像方式image和build的区别:
+            build:告诉Compose去指定目录用Dockerfile构建影像，常用于开发时需要把本地源码打包进镜像时
+            image:直接指定要使用的镜像名(docker hub或私有仓库里的镜像，常用于生产或使用第三方镜像)
+            如果同时提供build和image,Compose 在构建后会把镜像打上你指定的 image 名称（便于推送到 registry镜像仓库，即docker hub等）。
+   III 后端main.py添加 app.add_middleware()
+       允许哪些外部来源可以跨域访问后端，且允许这些跨域请求携带凭证（cookies等），且所有HTTP方法和所有请求头都允许
+
+   IV 添加前端：1.用vue create frontend文件夹 下载axios,vuex,bootstrap
+              2.在前端的main.js中连接Axios和Bootstrap的依赖，设置axios基本URL为后端端口5000
+              3.为前端添加DockFile，并在docker-compose里添加frontend服务
+              4.更新HelloWorld.vue，这是个示例，负责渲染一个简单的视图并在创建时向后端请求数据，用于验证前端能否正确启动，能否与后端通信，能否显示从后端返回内容
+                在HelloWorld.vue中，create()钩子里使用getMessage()，8080会显示后端app的helloworld
+              5.在git提交时，因为vue创建的前端项目已经有一个.gitnore了（代表它原本是一个独立的git仓库），添加到父仓库时，git将其识别为子模块（git ls-files --stage | grep frotend 检查git如何看待这个目录，160000表示子模块)
+                此时需要将frontend从子模块转换为普通目录 git rm --cached services/frontend + rm/services/frontend/.gitnore + git add services/frontend/
+
+   V 为docker-compose添加数据库：这里采用Postgres数据库,使用Tortoise-ORM作为对象关系映射器，使用Aerich管理数据库迁移
+                               docker-compose里面写好db:配置后【镜像版本（postgres版本/mysql版本等），暴露端口，环境变量（数据库名，用户/密码，容器启动时PostgreSQL会使用这些配置初始化），数据持久化】，要在backend:里面连接配置，连接字符串格式：postgres://用户名:密码@主机名:端口/数据库名
+     ORM：Object Relational Mapper 对象关系映射器，充当数据库仓库的“翻译器”，用Python的类和对象操作数据，ORM把这些操作翻译成SQL去跟数据库交互（例如，用py定义一个模型，ORM把他翻译成数据库里的表)，不必写SQL
+     Tortoise-ORM：专门为异步async/await写的ORM，所有数据库操作都是异步的，需要用wait
+     Aerich:配套的迁移工具，当更改数据库模型（比如新增字段时），Aerich帮你生成并应用数据库变更脚本
+
+Day2 9.20 
+   I 数据库：database文件夹
+     models.py:数据模型定义文件，定义所有数据库表对应的Python类（模型），用Tortoise-ORM的语法定义字段，关系，索引等
+     config.py:提供配置信息（数据库地址，模型位置
+     register.py:在应用启动时读取配置，连接数据库，加载模型
+     config(配置信息)+models(表结构)+register(连接管理)+ = 完整的数据库集成方案
+     另外，Tortoise ORM通过aerich进行数据库迁移,迁移就是对数据库结构进行git版本控制的工具，数据库表/字段/字段属性等结构改变后，需要通过aeich记录下来
+
+     构建好上面三个文件后
+     docker compose exec backend aerich init -t src.database.config.TORTOISE_ORM （只须执行一次)
+     docker compose exec backend aerich init-db
+
+     检查数据库表是否创建成功
+     docker compose exec db psql -U hello_fastapi -d hello_fastapi_dev -c "\dt" hello_fastapi为docker-compose厘米backend的DATABASE_URL定义的表名
+
+     直接通过sql语句在docker里查询数据库记录
+     docker compose exec db psql -U hello_fastapi -d hello_fastapi_dev -c "SELECT user_id, detection_type, detected_objects_count, processing_time FROM detection_history;"
+
+     需要在后端的main.py里使用register定义的注册数据库的函数初始化数据库
+     当更改模型后，可以通过docker-cmpose exec backend aerich migrate+upgrade 更新数据库 加上 --name xxx 可以附带说明
+   
+   II 定义用于请求体/返回体的数据模型：schemas文件夹，充当“数据格式规范”的角色
+      users.py:UserInSchema：验证用户提交的数据格式是否正确 UserOutSchema：定义返回给前端的数据格式 UserDatabaseSchema：用于应用内部的用户验证和处理
+      Status.py:用于返回状态消息
+   
+   III CRUD帮助函数 crud文件夹：实现user资源的所有增删查改操作的函数
+
+Day3 9.22
+   I pytest:用于在crud helper函数写完后，对CRUD函数进行测试
+       pytest是Python生态中最流行的测试框架，有简洁语法(普通assert语句),丰富fixture系统（依赖注入机制),自动发现测试函数，配合pytest-asyncio完美支持fastapi+TORTOISE_ORM的异步特性
+       依赖注入机制:使pytest只需要在conftest配置文件中只定义一次，测试使用的数据库及库里的表等，在所有测试中都能依赖注入自动创建
+       不同作用域的fixture:作用域决定依赖注入fixture的生命周期 默认为function（每个测试函数执行前都会运行一次,如工厂函数，数据清理) 与session (整个测试会话只执行一次，如数据库初始化)
+
+    pytest测试具体实现:
+      1.测试环境隔离 初始化SQLite轻量内存数据库
+      2.工厂模式创建测试数据,即user表 use_factory()
+      3.AAA测试模式 Arrange:准备测试数据(UserInSchema对象) Act:执行CRUD操作 Assert:验证结果
+      4.全面测试覆盖：正常路径：test_create_user_success - 验证基本功能和业务逻辑
+                   异常路径：test_create_user_conflict - 验证错误处理和约束检查
+                   权限控制：test_delete_user_self_only - 验证安全性和访问控制
+   
+   II JWT身份验证
+        JWT（JSON Web Token)：相当于网页的电子身份证，即登陆一此后，服务器给你一个通行证，之后凭这个通行证访问
+          分为三部分(用.分割： Header(头部)，说明加密算法 payload(载荷)，用户信息和过期时间 Signature:签名)
+          通常JWT会在网页的HTTP Header中，这里我们把JWT写到网页Cookie（服务器在个人浏览器存储的个人信息）端中，并从Cookie中读取
+
+        jwthandler.py包括一个从OAuth2继承来的类，该类会从cookie中而不是像父类一样从http头中读取JWT
+                     一个JWT生成函数，参数为要放入JWT的用户信息和自定义过期时间，返回生成的JWT字符串
+                     一个用户认证函数，调用之前类在当前网页(/login)的实例，将实例从cookie中读取的JWT传给这个函数，从而验证是哪个用户，返回该用户。如果没有JWT，自动返回401错误
+
+        JWT完整的工作流程:
+          1. 用户POST /login {"username": "john", "password": "123456"}
+          2. 服务器验证密码正确
+          3. 调用create_access_token({"sub": "john"})
+          4. 生成JWT: "eyJhbGciOiJIUzI1NiJ9..."
+          5. 设置Cookie: Set-Cookie: Authorization=Bearer eyJhbGciOiJIUzI1NiJ9...
+          6. 返回登录成功
+        访问受保护接口流程：
+          1. 用户GET /api/profile
+          2. 浏览器自动发送Cookie: Authorization=Bearer eyJhbGciOiJIUzI1NiJ9...
+          3. OAuth2PasswordBearerCookie从Cookie提取Token
+          4. get_current_user验证Token并查询用户信息
+          5. 返回用户资料
+
+   III 密码哈希
+       1.什么是密码哈希?
+         就像把钱放进保险箱，只有密码才能打开 如：用户输入123456->哈希后变成很复杂的字符串
+         关键特点：单向性，可以从密码生成哈希，但不能从哈希还原密码
+                 唯一性，相同密码生成相同哈希
+                 安全性，即使数据库泄漏，黑客也看不到真实密码
+       2. 什么是OAuth2PasswordRequestForm?
+         这是一个标准的登录表单格式
+       3. 什么是bcrypt?
+           一种专门用于密码哈希的算法
+
+       auth.users.py：
+         整个身份验证系统的基础，创建一个passlib的CryptCOntext库对象，通过这个库的各种方法，进行密码哈希，验证用户输入的用户名和密码是否符合等操作
+
+Day4 9.28 
+   I Yolo目标检测函数 detector.py
+     1.首先通过dataclass（自动生成简化类，如自动生成__init__函数）创建了一个DetectorConfig类，该类包含检测器的配置(图像处理大小，置信度阈值，输出路径和模型存储文件夹路径)
+     2.创建重要-Detector类，构造函数参数包括config（检测配置),model_path(模型路经),device(处理设备)
+     3.Detector类的内置函数:
+       🕛 _get_device():设备检测，决定是用gpu还是cpu
+       🕛 load_model() ：调用YOLO类，传入Detector类的model_path参数构造一个YOLO模型对象,传给self.model
+       🕛 save_result()：保存图片的检测结果：遍历检测结果self.results,每一个目标框都用self.models.predict.plot()绘制目标框，并通过cv2.imwrite()将图片输出到输出路径
+       🕛 detect_pictue():图片检测函数，调用self.model.predict将结果传给self.results()
+       🕛 detect_video():与检测函数逻辑大不同：使用cv读取传入的视频(cv.VideoCapture)，使用cv分解视频，获取参数和每一帧;创建处理输出的视频对象(cv.VideoWrite)，
+                         每一帧都用self.model.predict处理，从每一帧的YOLO检测结果中提取每个目标框的具体信息（边界坐标，类别）
+                         为每个类别分配随机但同类固定的颜色，在元帧上绘制检测框和标签，写入处理后的帧
+                         释放输入，输出视频资源，返回输出视频路径
+       🕛 change_model():切换YOLO模型，传入新模型路径，将self.model_path改成新模型路径，再self.load_model()重新加载模型
+       🕛 测试:detector.py下面直接添加
+              通过添加一个test_image文件夹 里面添加图片 然后执行检测并输出相应结果
+              直接在docker里面通过 docker compose exec backend python 文件路径 执行即可判别
+
+Day5 10.1 
+   I 路由routes 
+     路由是FastAPI应用的“接待员”，负责定义哪些URL可以访问，指定每个URL支持什么HTTP方法，将HTTP请求分发到对应的处理函数
+     路由充当前后端连接时后端的桥梁，前端Vue通过axios发送请求:axios.post('/api/users,userData),后端路由@app.post("/api/users")接收并处理
+
+     1 user路由
+       🕛 用户注册路由：用crud函数里的create_user()处理用户输入模型，创建用户，返回创建成功的用户数据模型(UserOutSchema)
+       🕛 用户登录路由：需要传入一个OAuth2的表单格式的用户名+密码信息，创建令牌，返回用户已成功登录的JSON响应(JSONResponse)
+       🕛 获取用户当前信息路由：两层依赖注入，装饰器依赖注入指明应确保已登录用户访问，函数参数依赖注入是传入当前登陆的用户信息，返回当前登陆的用户数据模型(UserOutSchema)
+       🕛 删除用户路由：也是两层依赖注入，传入user_id和当前用户信息（依赖注入已登录用户），调用crud.delete_user删除当前用户，返回删除成功的状态信息(Status)
+       📐 获取用户信息和删除用户这两个路由，是如何进行依赖注入的？
+           以路由函数为例，用户参数 current_user:UserOutSchema = Depends(get_current_user)
+           一.FastApi发现依赖，先执行get_current_user,检查get_current_user的参数（token:str = Depends(security)),实际执行token = await security(request)
+           二 security是能从cookie里获取令牌的类OAuth2PasswordBearerCookie的实例，调用该类的唤起函数__call__,从Cookie中获取Authorization,解析jwt Token，返回获取的token字符串
+           三.token字符串传递给get_current_user, 查询并返回用户
+           四.get_current_user获取到的用户信息传递给路由，并注入到路由函数中的参数中
+
+     2 yolo路由
+       首先初始化路由器，所有站点前缀为/yolo,然后初始化一个YOLO检测器对象
+       🕛 图片检测路由：上传多个图片文件（Upfileload)，将文件保存到本地路径，并通过shutil.copyfileobj将上传的文件写入本地，返回JSON响应（成功信息和检测的图片输出名）
+       🕛 视频检测路由：接收单个上传文件，其他同图片检测
+       🕛 切换模型路由：上传新模型的文件路径(str),运用detector.change_model()
+       🕛 获取所有模型路由：获取所有模型文件夹里面的.pt文件与当前使用的模型名称（通过yolo检测器对象的.model属性获取),并返回所有模型与当前模型的JSON响应
+
+    写完路由后，要在后端的main.py文件中通过app.include_router()导入路由
+
+   II 访问不了后端5050端口：后端中某些代码有问题时
+      docker compose ps 可以检查容器的运行状态
+      docker compose logs backend 如果容器在运行，检查后端容器的日志，看看哪里出了错，如果好了应当显示 INFO： Application startup complete...
+      docker compose restart backend 改完代码可以只重启后端
+
+Day6 10.4
+   I 前端：store文件夹 用于管理Vue.js的全局状态 即 Vuex Store
+     1.store/index.js
+       创建Vuex stroe实例（超市的中央仓库，存储所有部门共用的数据）
+       将各个功能模块注册到主store，统一管理所有状态模块
+       即：各前端页面发送数据（如注册，登录等用户在页面上输入的数据），统一触发提交到Vuex Store中，Vuex Store接收数据并通过Axios发送HTTP请求，Axios的全局配置决定了请求如何发送到后端
+     2.module文件夹
+       user.js:充当仓库里的用户资料管理员，管理用户登录，注册等用户信息，提供关于用户的各种功能，收集各个页面关于用户的请求与数据发送后，与后端的用户API进行交互，
+       yolo.js:管理ai检测，模型切换等功能，提供YOLO检测的各种功能的API封装，与后端的YOLO检测服务进行交互
+
+   II component
+      NavBar.vue:导航栏 使用Bootstrap样式，通过Vuex store检查用户登录状态，已登录和未登录用户显示不同的菜单项（已登录用户包含功能菜单，未登录用户只有注册/登录）
+                       导航栏需要导入到App.Vue文件中(Vue应用的标准架构模式),因为App.vue是整个vue应用的根组件，定义了应用整体路由结构，而NavBar需要在所有页面都显示（持久化组件）
+   
+   III views(router-view 路由视图，动态内容 这里面的页面需要在router/index.js注册上)
+      🕛 RegisterView.vue: 注册页面 如何实现前后端连接？
+                                   1.用户输入的数据绑定到Vue组件的data中(RegisterView.vue中， data(){return{user:{}}})
+                                   2.表单提交触发：用户点击注册按钮时，注册请求提交到Vuex Store中(RegisterView.vue中，async submit(){await this.$store.dispatch(‘user/register',this.user)}) 
+                                   3.Vuex Store处理：Vuex store接收数据并使用Axios发送HTTP请求（store/modules/user.js中，async register({dispatch},form){await axios.post('register',form)}
+                                   4.Axios的全局配置决定了请求如何发送到后端(main.js中， axios.defaults.baseURL = ...)
+                                   5.容器网络通信：Docker Compose配置了前端/后端/数据库容器间的网络(docker-compose,yml中， frontend/backend:ports:[], db:environment:)
+                                   6.后端API接收：Fastapi后端路由接收到HTTP请求:(routes/users.py中，@router.post("/register))
+                                   7.数据库操作：CRUD模块处理数据库操作，并最终存储在PostgreSQL数据库中（crud/user.py中:async def create(user))
+                                   8.响应返回流程：
+                                       数据库保存成功，返回用户对象(crud/user.py里， user_newobj = await Users.create_user(),即Tortoise ORM模型执行INSERT INTO)
+                                       FastAPI返回JSON:FastAPI将crud返回的用户对象自动序列化为JSON格式响应{"id":1, "username":xx, "password":xx, "created_at":2023-10-08xx}(router/users.py中，user_obj = await crud.create_user(user)，return user_obj)
+                                       Vuex Store的Axios接收响应：与发送请求同一句代码:(store/module/user.js中，const response = await axios.post('register',form))
+                                       Vuex更新状态:更新登录状态，存储登录信息(store/module/user.js中， const mutations = {SET_AUTHENTICATED(){},SET_USER(){}}, const actions = {async logIn({commit},form)})
+                                       页面跳转：注册成功后，跳转至仪表盘页面:(RegisterView.vue中，this.router.push('/dashboard))
+     🕛 LoginView.vue： 登录页面 
+                         前端：用户填写登录表单 → 表单验证 → 提交到Vuex
+                         Vuex：创建FormData → 发送axios请求到后端/login
+                         后端：接收请求 → 验证用户名密码 → 生成JWT，密码哈希 → 设置Cookie返回
+                         前端：接收响应 → 登录后，请求/users/whoami获取用户信息 
+                         后端: /users/whoami路由，执行注入的get_current_user依赖，从数据库中返回当前用户信息
+                         持久化：JWT存储在HTTP-only Cookie中，后续请求自动携带身份信息
+      
+     🕛 DashboardView.vue: 目标检测主体页面 包括用户上传图片/视频，滑动条选择置信度，切换模型，进行检测
+                                   1.用户输入的数据绑定到Vue组件的data中：（DashboardView.vue中， 先定义const imageFiles/videoFiles/confthreshold..., 再绑定事件,如图片文件选择： const handleImageSelect = (event) =>{const files = Array.from(event.target.files, imageFiles.value = files)}
+                                   2.检测任务触发:用户点击检测按钮时，检测请求提交到Vuex Store中，dispatch要写上对应的路由(DashboardView.vue中的图片检测， const uploadImages = async() => {await store.dispatch(‘yolo/detectImages,{files:imageFiles.value, confthreshold:confthreshold.value})})
+                                   3.Vuex Store处理：Vuex store接收数据，并使用Axios发送HTTP请求(store/modules/yolo.js中， const actions = {async detectVideos({commit}, {files,confThreshold})
+                                                                                                                                      async detectVideos({commit},{files,confThreshold})
+                                                                                                                                      async switchModel({commit},{modelName}) 其中的 await axios.post('后端路由'，dormData)})
+                                   4.Axios全局配置和容器网络通信，决定了请求如何发送到哪个后端
+                                   5.后端路由API接收：FastAPI后端路由接收到HTTP请求，（routes/yolo.py中，@router.post("...")
+                                   6.YOLO检测器操作：AI模型处理文件并生成检测结果（yolo/detectore.py）
+                                   7.响应返回流程：
+                                    7.1 YOLO检测完成，返回检测结果(routes/yolo.py中，路由函数最后都要返回处理结果的字典，FastAPI将处理结果自动序列化为JSON响应格式)
+                                    7.2 Vuex Store的Axios接收响应：与发送请求同一句代码 const response = await axios.post()
+                                    7.3 Vuex更新状态：更新检测状态，存储检测结果(modules/yolo.js中， const mutations = {setDetectionResults(state, results){state.setDetectionResults = results},const actions = {async detectImages({commit}, payload){commit('setDetectionResults',response.data)}})
+                                    7.4 页面状态更新：检测完成后，动态显示检测结果(DashboardView.vue中，resultImages.value = response.output_images.map(img => ${baseURL}static/outputs/images/${img}).并通过Vue的响应机制在html代码里自动显示结果图片和原图)
+
+
+Day7 10.14 更新用户检测记录功能
+   I 后端：数据库模型更新
+     在database/models.py里面，添加用户检测记录模型，该模型为用户每次检测的记录
+       该模型以id为主键，以user_id为外键，用户-用户检测记录为一对多关系
+       包括检测类型(图片，视频)，文件个数，模型使用名，检测目标数，输入/输出文件名称，处理时长，检测时间等字段
+
+  II 后端：定义用于请求体/返回体的用户检测记录的数据范式类型(pydantic模型)
+     在schema文件夹中，新建detection文件，里面主要定义两种模式：与ORM用户检测记录模型类似的检测记录模式，以及用户统计信息输出模式
+     DetectionHistoryBase:检测历史基础模式，与Tortoise ORM的检测记录模型结构相似，但是不直接用pydantic_create_model()的原因：ORM使用对象关系(user的一对一关系，这在Schema里面最好自己定义),且ROM需要数据库兼容的JSONField字段，而pydantic_create_model()不支持
+       DetectionHistoryCreate:检测历史记录的输入模式，专门用于创建新记录的输入模式，用于POST请求的请求体验证，相比基础模式多了user_id
+       DetectionHistoryOut：检测历史输出模式，定义API响应的数据结构，用于GET请求的响应格式，相比基础模式多了id,user_id和created_at,且允许从ORM对象自动转换
+     
+     UserStatsOut：定义用户统计信息的输出模式（总图像处理个数，总处理时长，上次处理时间等，为最终要在前端显示的数据)，用于GET请求的响应格式，同样支持ORM转换，包含在具体函数里聚合计算的结果字段
+
+     records_with_objects = await DetectionHistory.filter(user_id=user_id).all() 这一句，DetectionHistry.filter()创建了一个queryset对象，await才真正执行了查询
+    
+                                   
+  III 后端:crud文件夹下添加detection.py，用于检测记录的创建与统计
+      🕛 create_detetion_record():输入用户ID和DetectionHistory范式的检测数据，通过Tortoise ORM数据库对象创建数据库里的检测记录，加入数据库
+      🕛 get_user_stats()：输入用户id，通过ORM获取数据库里检测记录的各种统计（图片/视频处理次数，检测市场等），并创建用户统计信息UserStatsOut范式、
+      🕛 get_user_detection_history()：输入用户id，检测类型，从DetectionHistory数据库表里查询用户所有的检测记录，按创建时间早晚排列
+  IV 后端：修改Yolo检测路由
+      在routes/yolo.py中，对检测图片和检测视频的路由端点进行修改，并添加获取用户统计信息的路由
+      图片检测路由@router.post("/detect_picture)中，
+        在路由函数参数中添加current_user参数，通过Denpends注入JWT验证
+        通过time.time（）获取开始和结束时间，相减得到处理时长
+        从检测结果中统计检测到的目标数量
+        创建检测记录的DetectionHistoryCreate范式
+        通过crud里的create_detection_history()函数，将检测记录范式转变成ORM模型，并创建数据库表里的记录，保存到数据库
+      视频检测路由：接收单个上传文件，其他同图片检测
+      新增获取用户统计信息路由@router.get("/user_stats",response_model=UserStatsOut)：
+        接收当前登录用户，调用crud.get_user_stats()函数，获取用户统计信息，返回UserStatsOut范式
+
+
+
+
+
+
+
+         
+          
